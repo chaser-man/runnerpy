@@ -1,41 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-    <title>Platformer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platformer Game</title>
     <style>
-        canvas {
-            border: none;
-        }
         body {
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-            overflow: hidden;
+            min-height: 100vh;
+            background: linear-gradient(to bottom, #60a5fa, #7c3aed);
+            font-family: Arial, sans-serif;
+        }
+
+        #gameCanvas {
+            background: linear-gradient(to bottom, #7dd3fc, #e0f2fe);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
+
 <body>
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
     <script>
-        // Game setup
         const canvas = document.getElementById('gameCanvas');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
         const ctx = canvas.getContext('2d');
 
-        // Add window resize handler
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
 
-        // Game objects
         const player = {
-            x: canvas.width * 0.1,
-            y: canvas.height - 150,
+            x: CANVAS_WIDTH * 0.1,
+            y: CANVAS_HEIGHT - 150,
             width: 30,
             height: 30,
             speed: 5,
@@ -47,116 +49,84 @@
         };
 
         let platforms = [
-            { x: 0, y: canvas.height - 50, width: canvas.width, height: 50, timer: null, active: true, isGround: true, color: 'green' },
-            { x: canvas.width * 0.4, y: canvas.height - 150, width: 200, height: 20, timer: null, active: true, color: 'green' },
-            { x: canvas.width * 0.2, y: canvas.height - 250, width: 200, height: 20, timer: null, active: true, color: 'green' }
+            { id: 0, x: 0, y: CANVAS_HEIGHT - 50, width: CANVAS_WIDTH, height: 50, color: '#4CAF50', active: true, isGround: true },
+            { id: 1, x: CANVAS_WIDTH * 0.4, y: CANVAS_HEIGHT - 150, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
+            { id: 2, x: CANVAS_WIDTH * 0.2, y: CANVAS_HEIGHT - 250, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false }
         ];
 
-        const gameState = {
+        let gameState = {
             score: 0,
             cameraPosY: 0,
-            highestPlatformY: canvas.height - 250,
+            highestPlatformY: CANVAS_HEIGHT - 250,
             gameOver: false
         };
 
-        // Input handling
         const keys = {};
-        document.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
-            if (e.key === ' ') {
-                e.preventDefault();
-            }
-        });
-        document.addEventListener('keyup', (e) => keys[e.key] = false);
 
         function generatePlatform() {
             const minWidth = 100;
             const maxWidth = 200;
             const width = Math.random() * (maxWidth - minWidth) + minWidth;
-            
-            // Calculate maximum horizontal gap based on player's jump capability
             const maxHorizontalGap = (player.speed * 2) * (2 * player.jumpForce / player.gravity);
-            
-            // Get the highest platform's position
-            const highestPlatform = platforms.reduce((highest, current) => 
+
+            const highestPlatform = platforms.reduce((highest, current) =>
                 current.y < highest.y ? current : highest, platforms[0]);
-            
+
             let x;
-            // Ensure the new platform is reachable from nearby platforms
             if (highestPlatform) {
                 const minX = Math.max(0, highestPlatform.x - maxHorizontalGap);
-                const maxX = Math.min(canvas.width - width, highestPlatform.x + highestPlatform.width + maxHorizontalGap);
+                const maxX = Math.min(CANVAS_WIDTH - width, highestPlatform.x + highestPlatform.width + maxHorizontalGap);
                 x = Math.random() * (maxX - minX) + minX;
             } else {
-                x = Math.random() * (canvas.width - width);
+                x = Math.random() * (CANVAS_WIDTH - width);
             }
 
-            // Adjust vertical gap
-            const minVerticalGap = 60; // Minimum gap between platforms
-            const maxVerticalGap = 120; // Maximum gap between platforms
-            
-            // Generate new platform above the highest existing platform
-            const y = highestPlatform ? 
+            const minVerticalGap = 60;
+            const maxVerticalGap = 120;
+
+            const y = highestPlatform ?
                 highestPlatform.y - minVerticalGap - Math.random() * (maxVerticalGap - minVerticalGap) :
                 gameState.highestPlatformY - minVerticalGap;
-            
-            platforms.push({ 
-                x, 
-                y, 
-                width, 
-                height: 20, 
-                timer: null, 
-                active: true, 
-                isGround: false,
-                color: 'green'  // Initial color
-            });
+
+            const newPlatform = {
+                id: Date.now(),
+                x,
+                y,
+                width,
+                height: 20,
+                color: '#8BC34A',
+                active: true,
+                isGround: false
+            };
+
+            platforms.push(newPlatform);
             gameState.highestPlatformY = Math.min(gameState.highestPlatformY, y);
         }
 
         function resetGame() {
-            // Reset player position and state
-            player.x = canvas.width * 0.1;
-            player.y = canvas.height - 150;
+            player.x = CANVAS_WIDTH * 0.1;
+            player.y = CANVAS_HEIGHT - 150;
             player.velocityY = 0;
             player.isJumping = false;
-            player.jumpsAvailable = 2;  // Reset available jumps
+            player.jumpsAvailable = 2;
 
-            // Reset game state
-            gameState.score = 0;
-            gameState.cameraPosY = 0;
-            gameState.highestPlatformY = canvas.height - 250;
-            gameState.gameOver = false;
+            gameState = {
+                score: 0,
+                cameraPosY: 0,
+                highestPlatformY: CANVAS_HEIGHT - 250,
+                gameOver: false
+            };
 
-            // Reset platforms
-            platforms.length = 0;
-            platforms.push(
-                { x: 0, y: canvas.height - 50, width: canvas.width, height: 50, timer: null, active: true, isGround: true, color: 'green' },
-                { x: canvas.width * 0.4, y: canvas.height - 150, width: 200, height: 20, timer: null, active: true, color: 'green' },
-                { x: canvas.width * 0.2, y: canvas.height - 250, width: 200, height: 20, timer: null, active: true, color: 'green' }
-            );
+            platforms = [
+                { id: 0, x: 0, y: CANVAS_HEIGHT - 50, width: CANVAS_WIDTH, height: 50, color: '#4CAF50', active: true, isGround: true },
+                { id: 1, x: CANVAS_WIDTH * 0.4, y: CANVAS_HEIGHT - 150, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
+                { id: 2, x: CANVAS_WIDTH * 0.2, y: CANVAS_HEIGHT - 250, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false }
+            ];
         }
 
-        // Game loop
         function gameLoop() {
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Check for game over
             if (gameState.gameOver) {
-                // Draw game over screen
-                ctx.fillStyle = 'black';
-                ctx.font = '48px Arial';
-                ctx.fillText('Game Over!', canvas.width/2 - 100, canvas.height/2);
-                ctx.font = '24px Arial';
-                ctx.fillText(`Final Score: ${gameState.score}`, canvas.width/2 - 70, canvas.height/2 + 40);
-                ctx.fillText('Press Space to Restart', canvas.width/2 - 100, canvas.height/2 + 80);
-
-                // Check for restart
-                if (keys[' ']) {
-                    resetGame();
-                }
-
-                requestAnimationFrame(gameLoop);
+                drawGameOver();
                 return;
             }
 
@@ -164,13 +134,11 @@
             if (keys['ArrowLeft']) player.x -= player.speed;
             if (keys['ArrowRight']) player.x += player.speed;
             if (keys[' '] || keys['ArrowUp']) {
-                // Allow jumping if we have jumps available
                 if (player.jumpsAvailable > 0) {
                     player.velocityY = -player.jumpForce;
                     player.jumpsAvailable--;
                     player.isJumping = true;
                 }
-                // Clear the key states to prevent holding for jumps
                 keys[' '] = false;
                 keys['ArrowUp'] = false;
             }
@@ -182,16 +150,15 @@
             // Collision detection
             player.isJumping = true;
             for (const platform of platforms) {
-                // Skip inactive platforms
                 if (!platform.active) continue;
 
                 if (player.x < platform.x + platform.width &&
                     player.x + player.width > platform.x &&
                     player.y + player.height > platform.y &&
                     player.y < platform.y + platform.height) {
-                    
+
                     // Bottom collision (landing)
-                    if (player.velocityY > 0 && 
+                    if (player.velocityY > 0 &&
                         player.y + player.height - player.velocityY <= platform.y) {
                         player.isJumping = false;
                         player.velocityY = 0;
@@ -199,15 +166,15 @@
                         player.jumpsAvailable = 2;
 
                         // Start disappearing timer if not already started and not ground
-                        if (!platform.timer && !platform.isGround) {
-                            platform.color = 'red';  // Change color immediately
-                            platform.timer = setTimeout(() => {
+                        if (!platform.isGround) {
+                            platform.color = '#FF5722';
+                            setTimeout(() => {
                                 platform.active = false;
                             }, 1000);
                         }
                     }
                     // Top collision (hitting head)
-                    else if (player.velocityY < 0 && 
+                    else if (player.velocityY < 0 &&
                         player.y - player.velocityY >= platform.y + platform.height) {
                         player.velocityY = 0;
                         player.y = platform.y + platform.height;
@@ -225,16 +192,15 @@
             }
 
             // Camera and platform management
-            const cameraUpperBound = canvas.height * 0.4;  // Upper threshold
-            const cameraLowerBound = canvas.height * 0.6;  // Lower threshold
-            
+            const cameraUpperBound = CANVAS_HEIGHT * 0.4;
+            const cameraLowerBound = CANVAS_HEIGHT * 0.6;
+
             // Camera follows player up
             if (player.y < cameraUpperBound) {
                 const cameraDelta = cameraUpperBound - player.y;
                 gameState.cameraPosY += cameraDelta;
                 player.y += cameraDelta;
-                
-                // Move all platforms down
+
                 platforms.forEach(platform => {
                     platform.y += cameraDelta;
                 });
@@ -244,63 +210,101 @@
                 const cameraDelta = cameraLowerBound - player.y;
                 gameState.cameraPosY += cameraDelta;
                 player.y += cameraDelta;
-                
-                // Move all platforms up
+
                 platforms.forEach(platform => {
                     platform.y += cameraDelta;
                 });
             }
-            
+
             // Platform management
-            platforms = platforms.filter(platform => 
-                platform.y < canvas.height + 100 && 
-                platform.y > -100 && 
-                (platform.active || platform.timer) // Keep platforms that are fading
+            platforms = platforms.filter(platform =>
+                platform.y < CANVAS_HEIGHT + 100 &&
+                platform.y > -100 &&
+                platform.active
             );
-            
+
             // Generate new platforms if needed
-            while (platforms.length < 8 || gameState.highestPlatformY > -canvas.height) {
+            while (platforms.length < 8 || gameState.highestPlatformY > -CANVAS_HEIGHT) {
                 generatePlatform();
             }
-            
+
             // Update score
-            gameState.score = Math.max(gameState.score, 
+            gameState.score = Math.max(gameState.score,
                 Math.floor(gameState.cameraPosY / 100));
 
             // Keep player in bounds
             if (player.x < 0) player.x = 0;
-            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-
-            // Draw player
-            ctx.fillStyle = 'red';
-            ctx.fillRect(player.x, player.y, player.width, player.height);
-
-            // Add score display before drawing platforms
-            ctx.fillStyle = 'black';
-            ctx.font = '20px Arial';
-            ctx.fillText(`Score: ${gameState.score}`, 20, 30);
-
-            // Draw platforms
-            platforms.forEach(platform => {
-                if (platform.active) {
-                    ctx.fillStyle = platform.color;  // Use platform's color
-                    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-                }
-            });
+            if (player.x + player.width > CANVAS_WIDTH) player.x = CANVAS_WIDTH - player.width;
 
             // Check if player has fallen too far
-            const lowestPlatform = platforms.reduce((lowest, current) => 
+            const lowestPlatform = platforms.reduce((lowest, current) =>
                 current.y > lowest.y ? current : lowest, platforms[0]);
-            
-            if (player.y > lowestPlatform.y + 200) {  // 200 pixels below lowest platform
+
+            if (player.y > lowestPlatform.y + 200) {
                 gameState.gameOver = true;
             }
 
-            requestAnimationFrame(gameLoop); // coment a
+            // Clear canvas and draw game objects
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            drawPlatforms();
+            drawPlayer();
+            drawScore();
+
+            requestAnimationFrame(gameLoop);
         }
+
+        function drawPlatforms() {
+            platforms.forEach(platform => {
+                if (platform.active) {
+                    ctx.fillStyle = platform.color;
+                    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+                }
+            });
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, player.width / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'white';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${gameState.score}`, 20, 30);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            ctx.fillStyle = 'white';
+            ctx.font = '48px Arial';
+            ctx.fillText('Game Over!', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 - 50);
+
+            ctx.font = '24px Arial';
+            ctx.fillText(`Final Score: ${gameState.score}`, CANVAS_WIDTH / 2 - 70, CANVAS_HEIGHT / 2 + 10);
+
+            ctx.fillText('Press Space to Restart', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 + 50);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                if (gameState.gameOver) {
+                    resetGame();
+                    gameLoop();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => keys[e.key] = false);
 
         // Start the game
         gameLoop();
     </script>
 </body>
+
 </html>
