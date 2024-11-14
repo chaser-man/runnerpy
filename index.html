@@ -1,310 +1,356 @@
-<!DOCTYPE html>
-<html lang="en">
+'use client'
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Platformer Game</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: linear-gradient(to bottom, #60a5fa, #7c3aed);
-            font-family: Arial, sans-serif;
+import { useEffect, useRef } from 'react'
+
+export default function Game() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const CANVAS_WIDTH = 800
+    const CANVAS_HEIGHT = 600
+
+    const player = {
+      x: CANVAS_WIDTH * 0.1,
+      y: CANVAS_HEIGHT - 150,
+      width: 20,
+      height: 30,
+      speed: 5,
+      jumpForce: 12,
+      gravity: 0.5,
+      velocityY: 0,
+      isJumping: false,
+      jumpsAvailable: 2,
+      direction: 1, // 1 for right, -1 for left
+    }
+
+    let platforms = [
+      { id: 0, x: 0, y: CANVAS_HEIGHT - 50, width: CANVAS_WIDTH, height: 50, color: '#4CAF50', active: true, isGround: true },
+      { id: 1, x: CANVAS_WIDTH * 0.4, y: CANVAS_HEIGHT - 150, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
+      { id: 2, x: CANVAS_WIDTH * 0.2, y: CANVAS_HEIGHT - 250, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
+    ]
+
+    let gameState = {
+      score: 0,
+      cameraPosY: 0,
+      highestPlatformY: CANVAS_HEIGHT - 250,
+      gameOver: false,
+    }
+
+    const keys: { [key: string]: boolean } = {}
+
+    function drawPlayer() {
+      if (!ctx) return
+
+      ctx.save()
+      ctx.translate(player.x + player.width / 2, player.y + player.height / 2)
+      ctx.scale(player.direction, 1)
+
+      // Body
+      ctx.fillStyle = '#3498db'
+      ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height)
+
+      // Eyes
+      ctx.fillStyle = 'white'
+      ctx.beginPath()
+      ctx.arc(-player.width / 4, -player.height / 4, player.width / 8, 0, Math.PI * 2)
+      ctx.arc(player.width / 4, -player.height / 4, player.width / 8, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Pupils
+      ctx.fillStyle = 'black'
+      ctx.beginPath()
+      ctx.arc(-player.width / 4, -player.height / 4, player.width / 16, 0, Math.PI * 2)
+      ctx.arc(player.width / 4, -player.height / 4, player.width / 16, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Mouth
+      ctx.strokeStyle = 'white'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.arc(0, player.height / 6, player.width / 4, 0, Math.PI)
+      ctx.stroke()
+
+      // Arms
+      ctx.strokeStyle = '#3498db'
+      ctx.lineWidth = player.width / 4
+      ctx.beginPath()
+      ctx.moveTo(-player.width / 2, 0)
+      ctx.lineTo(-player.width * 0.7, player.height / 4)
+      ctx.moveTo(player.width / 2, 0)
+      ctx.lineTo(player.width * 0.7, player.height / 4)
+      ctx.stroke()
+
+      // Legs
+      ctx.beginPath()
+      ctx.moveTo(-player.width / 4, player.height / 2)
+      ctx.lineTo(-player.width / 4, player.height * 0.8)
+      ctx.moveTo(player.width / 4, player.height / 2)
+      ctx.lineTo(player.width / 4, player.height * 0.8)
+      ctx.stroke()
+
+      ctx.restore()
+    }
+
+    function gameLoop() {
+      if (!ctx) return
+      if (gameState.gameOver) {
+        drawGameOver()
+        return
+      }
+
+      // Player movement
+      if (keys['ArrowLeft']) {
+        player.x -= player.speed
+        player.direction = -1
+      }
+      if (keys['ArrowRight']) {
+        player.x += player.speed
+        player.direction = 1
+      }
+      if (keys[' '] || keys['ArrowUp']) {
+        if (player.jumpsAvailable > 0) {
+          player.velocityY = -player.jumpForce
+          player.jumpsAvailable--
+          player.isJumping = true
         }
+        keys[' '] = false
+        keys['ArrowUp'] = false
+      }
 
-        #gameCanvas {
-            background: linear-gradient(to bottom, #7dd3fc, #e0f2fe);
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      // Apply gravity
+      player.velocityY += player.gravity
+      player.y += player.velocityY
+
+      // Collision detection
+      player.isJumping = true
+      for (const platform of platforms) {
+        if (!platform.active) continue
+
+        if (
+          player.x < platform.x + platform.width &&
+          player.x + player.width > platform.x &&
+          player.y + player.height > platform.y &&
+          player.y < platform.y + platform.height
+        ) {
+          // Bottom collision (landing)
+          if (player.velocityY > 0 && player.y + player.height - player.velocityY <= platform.y) {
+            player.isJumping = false
+            player.velocityY = 0
+            player.y = platform.y - player.height
+            player.jumpsAvailable = 2
+
+            // Start disappearing timer if not already started and not ground
+            if (!platform.isGround) {
+              platform.color = '#FF5722'
+              setTimeout(() => {
+                platform.active = false
+              }, 1000)
+            }
+          }
+          // Top collision (hitting head)
+          else if (player.velocityY < 0 && player.y - player.velocityY >= platform.y + platform.height) {
+            player.velocityY = 0
+            player.y = platform.y + platform.height
+          }
+          // Side collision
+          else {
+            if (player.x + player.width - player.speed <= platform.x) {
+              player.x = platform.x - player.width
+            }
+            if (player.x + player.speed >= platform.x + platform.width) {
+              player.x = platform.x + platform.width
+            }
+          }
         }
-    </style>
-</head>
+      }
 
-<body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+      // Camera and platform management
+      const cameraUpperBound = CANVAS_HEIGHT * 0.4
+      const cameraLowerBound = CANVAS_HEIGHT * 0.6
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+      // Camera follows player up
+      if (player.y < cameraUpperBound) {
+        const cameraDelta = cameraUpperBound - player.y
+        gameState.cameraPosY += cameraDelta
+        player.y += cameraDelta
 
-        const CANVAS_WIDTH = 800;
-        const CANVAS_HEIGHT = 600;
+        platforms.forEach((platform) => {
+          platform.y += cameraDelta
+        })
+      }
+      // Camera follows player down
+      else if (player.y > cameraLowerBound) {
+        const cameraDelta = cameraLowerBound - player.y
+        gameState.cameraPosY += cameraDelta
+        player.y += cameraDelta
 
-        const player = {
-            x: CANVAS_WIDTH * 0.1,
-            y: CANVAS_HEIGHT - 150,
-            width: 30,
-            height: 30,
-            speed: 5,
-            jumpForce: 12,
-            gravity: 0.5,
-            velocityY: 0,
-            isJumping: false,
-            jumpsAvailable: 2
-        };
+        platforms.forEach((platform) => {
+          platform.y += cameraDelta
+        })
+      }
 
-        let platforms = [
-            { id: 0, x: 0, y: CANVAS_HEIGHT - 50, width: CANVAS_WIDTH, height: 50, color: '#4CAF50', active: true, isGround: true },
-            { id: 1, x: CANVAS_WIDTH * 0.4, y: CANVAS_HEIGHT - 150, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
-            { id: 2, x: CANVAS_WIDTH * 0.2, y: CANVAS_HEIGHT - 250, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false }
-        ];
+      // Platform management
+      platforms = platforms.filter((platform) => platform.y < CANVAS_HEIGHT + 100 && platform.y > -100 && platform.active)
 
-        let gameState = {
-            score: 0,
-            cameraPosY: 0,
-            highestPlatformY: CANVAS_HEIGHT - 250,
-            gameOver: false
-        };
+      // Generate new platforms if needed
+      while (platforms.length < 8 || gameState.highestPlatformY > -CANVAS_HEIGHT) {
+        generatePlatform()
+      }
 
-        const keys = {};
+      // Update score
+      gameState.score = Math.max(gameState.score, Math.floor(gameState.cameraPosY / 100))
 
-        function generatePlatform() {
-            const minWidth = 100;
-            const maxWidth = 200;
-            const width = Math.random() * (maxWidth - minWidth) + minWidth;
-            const maxHorizontalGap = (player.speed * 2) * (2 * player.jumpForce / player.gravity);
+      // Keep player in bounds
+      if (player.x < 0) player.x = 0
+      if (player.x + player.width > CANVAS_WIDTH) player.x = CANVAS_WIDTH - player.width
 
-            const highestPlatform = platforms.reduce((highest, current) =>
-                current.y < highest.y ? current : highest, platforms[0]);
+      // Check if player has fallen too far
+      const lowestPlatform = platforms.reduce((lowest, current) => (current.y > lowest.y ? current : lowest), platforms[0])
 
-            let x;
-            if (highestPlatform) {
-                const minX = Math.max(0, highestPlatform.x - maxHorizontalGap);
-                const maxX = Math.min(CANVAS_WIDTH - width, highestPlatform.x + highestPlatform.width + maxHorizontalGap);
-                x = Math.random() * (maxX - minX) + minX;
-            } else {
-                x = Math.random() * (CANVAS_WIDTH - width);
-            }
+      if (player.y > lowestPlatform.y + 200) {
+        gameState.gameOver = true
+      }
 
-            const minVerticalGap = 60;
-            const maxVerticalGap = 120;
+      // Clear canvas and draw game objects
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+      drawPlatforms()
+      drawPlayer()
+      drawScore()
 
-            const y = highestPlatform ?
-                highestPlatform.y - minVerticalGap - Math.random() * (maxVerticalGap - minVerticalGap) :
-                gameState.highestPlatformY - minVerticalGap;
+      requestAnimationFrame(gameLoop)
+    }
 
-            const newPlatform = {
-                id: Date.now(),
-                x,
-                y,
-                width,
-                height: 20,
-                color: '#8BC34A',
-                active: true,
-                isGround: false
-            };
-
-            platforms.push(newPlatform);
-            gameState.highestPlatformY = Math.min(gameState.highestPlatformY, y);
+    function drawPlatforms() {
+      if (!ctx) return
+      platforms.forEach((platform) => {
+        if (platform.active) {
+          ctx.fillStyle = platform.color
+          ctx.fillRect(platform.x, platform.y, platform.width, platform.height)
         }
+      })
+    }
 
-        function resetGame() {
-            player.x = CANVAS_WIDTH * 0.1;
-            player.y = CANVAS_HEIGHT - 150;
-            player.velocityY = 0;
-            player.isJumping = false;
-            player.jumpsAvailable = 2;
+    function drawScore() {
+      if (!ctx) return
+      ctx.fillStyle = 'white'
+      ctx.font = '20px Arial'
+      ctx.fillText(`Score: ${gameState.score}`, 20, 30)
+    }
 
-            gameState = {
-                score: 0,
-                cameraPosY: 0,
-                highestPlatformY: CANVAS_HEIGHT - 250,
-                gameOver: false
-            };
+    function drawGameOver() {
+      if (!ctx) return
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
-            platforms = [
-                { id: 0, x: 0, y: CANVAS_HEIGHT - 50, width: CANVAS_WIDTH, height: 50, color: '#4CAF50', active: true, isGround: true },
-                { id: 1, x: CANVAS_WIDTH * 0.4, y: CANVAS_HEIGHT - 150, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
-                { id: 2, x: CANVAS_WIDTH * 0.2, y: CANVAS_HEIGHT - 250, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false }
-            ];
+      ctx.fillStyle = 'white'
+      ctx.font = '48px Arial'
+      ctx.fillText('Game Over!', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 - 50)
+
+      ctx.font = '24px Arial'
+      ctx.fillText(`Final Score: ${gameState.score}`, CANVAS_WIDTH / 2 - 70, CANVAS_HEIGHT / 2 + 10)
+
+      ctx.fillText('Press Space to Restart', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 + 50)
+    }
+
+    function generatePlatform() {
+      const minWidth = 100
+      const maxWidth = 200
+      const width = Math.random() * (maxWidth - minWidth) + minWidth
+      const maxHorizontalGap = player.speed * 2 * ((2 * player.jumpForce) / player.gravity)
+
+      const highestPlatform = platforms.reduce((highest, current) => (current.y < highest.y ? current : highest), platforms[0])
+
+      let x
+      if (highestPlatform) {
+        const minX = Math.max(0, highestPlatform.x - maxHorizontalGap)
+        const maxX = Math.min(CANVAS_WIDTH - width, highestPlatform.x + highestPlatform.width + maxHorizontalGap)
+        x = Math.random() * (maxX - minX) + minX
+      } else {
+        x = Math.random() * (CANVAS_WIDTH - width)
+      }
+
+      const minVerticalGap = 60
+      const maxVerticalGap = 120
+
+      const y = highestPlatform
+        ? highestPlatform.y - minVerticalGap - Math.random() * (maxVerticalGap - minVerticalGap)
+        : gameState.highestPlatformY - minVerticalGap
+
+      const newPlatform = {
+        id: Date.now(),
+        x,
+        y,
+        width,
+        height: 20,
+        color: '#8BC34A',
+        active: true,
+        isGround: false,
+      }
+
+      platforms.push(newPlatform)
+      gameState.highestPlatformY = Math.min(gameState.highestPlatformY, y)
+    }
+
+    function resetGame() {
+      player.x = CANVAS_WIDTH * 0.1
+      player.y = CANVAS_HEIGHT - 150
+      player.velocityY = 0
+      player.isJumping = false
+      player.jumpsAvailable = 2
+
+      gameState = {
+        score: 0,
+        cameraPosY: 0,
+        highestPlatformY: CANVAS_HEIGHT - 250,
+        gameOver: false,
+      }
+
+      platforms = [
+        { id: 0, x: 0, y: CANVAS_HEIGHT - 50, width: CANVAS_WIDTH, height: 50, color: '#4CAF50', active: true, isGround: true },
+        { id: 1, x: CANVAS_WIDTH * 0.4, y: CANVAS_HEIGHT - 150, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
+        { id: 2, x: CANVAS_WIDTH * 0.2, y: CANVAS_HEIGHT - 250, width: 200, height: 20, color: '#8BC34A', active: true, isGround: false },
+      ]
+    }
+
+    document.addEventListener('keydown', (e) => {
+      keys[e.key] = true
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (gameState.gameOver) {
+          resetGame()
+          gameLoop()
         }
+      }
+    })
 
-        function gameLoop() {
-            if (gameState.gameOver) {
-                drawGameOver();
-                return;
-            }
+    document.addEventListener('keyup', (e) => (keys[e.key] = false))
 
-            // Player movement
-            if (keys['ArrowLeft']) player.x -= player.speed;
-            if (keys['ArrowRight']) player.x += player.speed;
-            if (keys[' '] || keys['ArrowUp']) {
-                if (player.jumpsAvailable > 0) {
-                    player.velocityY = -player.jumpForce;
-                    player.jumpsAvailable--;
-                    player.isJumping = true;
-                }
-                keys[' '] = false;
-                keys['ArrowUp'] = false;
-            }
+    // Start the game
+    gameLoop()
 
-            // Apply gravity
-            player.velocityY += player.gravity;
-            player.y += player.velocityY;
+    // Cleanup function
+    return () => {
+      document.removeEventListener('keydown', (e) => {
+        keys[e.key] = true
+      })
+      document.removeEventListener('keyup', (e) => (keys[e.key] = false))
+    }
+  }, [])
 
-            // Collision detection
-            player.isJumping = true;
-            for (const platform of platforms) {
-                if (!platform.active) continue;
-
-                if (player.x < platform.x + platform.width &&
-                    player.x + player.width > platform.x &&
-                    player.y + player.height > platform.y &&
-                    player.y < platform.y + platform.height) {
-
-                    // Bottom collision (landing)
-                    if (player.velocityY > 0 &&
-                        player.y + player.height - player.velocityY <= platform.y) {
-                        player.isJumping = false;
-                        player.velocityY = 0;
-                        player.y = platform.y - player.height;
-                        player.jumpsAvailable = 2;
-
-                        // Start disappearing timer if not already started and not ground
-                        if (!platform.isGround) {
-                            platform.color = '#FF5722';
-                            setTimeout(() => {
-                                platform.active = false;
-                            }, 1000);
-                        }
-                    }
-                    // Top collision (hitting head)
-                    else if (player.velocityY < 0 &&
-                        player.y - player.velocityY >= platform.y + platform.height) {
-                        player.velocityY = 0;
-                        player.y = platform.y + platform.height;
-                    }
-                    // Side collision
-                    else {
-                        if (player.x + player.width - player.speed <= platform.x) {
-                            player.x = platform.x - player.width;
-                        }
-                        if (player.x + player.speed >= platform.x + platform.width) {
-                            player.x = platform.x + platform.width;
-                        }
-                    }
-                }
-            }
-
-            // Camera and platform management
-            const cameraUpperBound = CANVAS_HEIGHT * 0.4;
-            const cameraLowerBound = CANVAS_HEIGHT * 0.6;
-
-            // Camera follows player up
-            if (player.y < cameraUpperBound) {
-                const cameraDelta = cameraUpperBound - player.y;
-                gameState.cameraPosY += cameraDelta;
-                player.y += cameraDelta;
-
-                platforms.forEach(platform => {
-                    platform.y += cameraDelta;
-                });
-            }
-            // Camera follows player down
-            else if (player.y > cameraLowerBound) {
-                const cameraDelta = cameraLowerBound - player.y;
-                gameState.cameraPosY += cameraDelta;
-                player.y += cameraDelta;
-
-                platforms.forEach(platform => {
-                    platform.y += cameraDelta;
-                });
-            }
-
-            // Platform management
-            platforms = platforms.filter(platform =>
-                platform.y < CANVAS_HEIGHT + 100 &&
-                platform.y > -100 &&
-                platform.active
-            );
-
-            // Generate new platforms if needed
-            while (platforms.length < 8 || gameState.highestPlatformY > -CANVAS_HEIGHT) {
-                generatePlatform();
-            }
-
-            // Update score
-            gameState.score = Math.max(gameState.score,
-                Math.floor(gameState.cameraPosY / 100));
-
-            // Keep player in bounds
-            if (player.x < 0) player.x = 0;
-            if (player.x + player.width > CANVAS_WIDTH) player.x = CANVAS_WIDTH - player.width;
-
-            // Check if player has fallen too far
-            const lowestPlatform = platforms.reduce((lowest, current) =>
-                current.y > lowest.y ? current : lowest, platforms[0]);
-
-            if (player.y > lowestPlatform.y + 200) {
-                gameState.gameOver = true;
-            }
-
-            // Clear canvas and draw game objects
-            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-            drawPlatforms();
-            drawPlayer();
-            drawScore();
-
-            requestAnimationFrame(gameLoop);
-        }
-
-        function drawPlatforms() {
-            platforms.forEach(platform => {
-                if (platform.active) {
-                    ctx.fillStyle = platform.color;
-                    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-                }
-            });
-        }
-
-        function drawPlayer() {
-            ctx.fillStyle = 'red';
-            ctx.beginPath();
-            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, player.width / 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        function drawScore() {
-            ctx.fillStyle = 'white';
-            ctx.font = '20px Arial';
-            ctx.fillText(`Score: ${gameState.score}`, 20, 30);
-        }
-
-        function drawGameOver() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-            ctx.fillStyle = 'white';
-            ctx.font = '48px Arial';
-            ctx.fillText('Game Over!', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 - 50);
-
-            ctx.font = '24px Arial';
-            ctx.fillText(`Final Score: ${gameState.score}`, CANVAS_WIDTH / 2 - 70, CANVAS_HEIGHT / 2 + 10);
-
-            ctx.fillText('Press Space to Restart', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 + 50);
-        }
-
-        document.addEventListener('keydown', (e) => {
-            keys[e.key] = true;
-            if (e.key === ' ') {
-                e.preventDefault();
-                if (gameState.gameOver) {
-                    resetGame();
-                    gameLoop();
-                }
-            }
-        });
-
-        document.addEventListener('keyup', (e) => keys[e.key] = false);
-
-        // Start the game
-        gameLoop();
-    </script>
-</body>
-
-</html>
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-b from-blue-400 to-purple-600">
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={600}
+        className="bg-gradient-to-b from-sky-300 to-sky-100 rounded-lg shadow-lg"
+      />
+    </div>
+  )
+}
